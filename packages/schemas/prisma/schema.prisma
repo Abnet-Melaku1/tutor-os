@@ -1,13 +1,147 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+enum MasteryLevel {
+  NOT_STARTED
+  LEARNING
+  MASTERED
+  FADING
+}
+
+enum MisconceptionStatus {
+  ACTIVE
+  RESOLVED
+}
+
+enum Role {
+  TUTOR
+  LEARNER
+}
+
+model Learner {
+  id              String             @id @default(uuid())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  name            String
+  profile         Json? // Stores goals, pace, preferred explanation style
+  
+  // Relations
+  knowledgeStates KnowledgeState[]
+  misconceptions  Misconception[]
+  memoryEvents    MemoryEvent[]
+  sessions        Session[]
+}
+
+model Concept {
+  id              String             @id @default(uuid())
+  name            String
+  description     String?
+  // Embeddings for RAG (Requires pgvector)
+  embedding       Unsupported("vector(1536)")?
+  
+  // DAG Relationships
+  prerequisites   ConceptPrerequisite[] @relation("Prerequisite")
+  dependentOn     ConceptPrerequisite[] @relation("Dependent")
+  
+  // Relations
+  knowledgeStates KnowledgeState[]
+  misconceptions  Misconception[]
+  turns           ConceptTurn[]
+}
+
+model ConceptPrerequisite {
+  conceptId       String
+  prerequisiteId  String
+  
+  concept         Concept @relation("Dependent", fields: [conceptId], references: [id])
+  prerequisite    Concept @relation("Prerequisite", fields: [prerequisiteId], references: [id])
+  
+  @@id([conceptId, prerequisiteId])
+}
+
+model KnowledgeState {
+  id              String       @id @default(uuid())
+  learnerId       String
+  conceptId       String
+  
+  mastery         MasteryLevel @default(NOT_STARTED)
+  confidence      Float        @default(0.0) // 0 to 1
+  stability       Float        @default(0.0) // Retention half-life estimate
+  evidenceCount   Int          @default(0)
+  
+  isLocked        Boolean      @default(false) // Edit-lock authority
+  lastReviewedAt  DateTime?
+  dueAt           DateTime?
+  
+  learner         Learner      @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  concept         Concept      @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([learnerId, conceptId])
+}
+
+model Misconception {
+  id              String              @id @default(uuid())
+  learnerId       String
+  conceptId       String
+  
+  description     String
+  status          MisconceptionStatus @default(ACTIVE)
+  firstSeenAt     DateTime            @default(now())
+  lastSeenAt      DateTime            @default(now())
+  
+  learner         Learner             @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  concept         Concept             @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id              String    @id @default(uuid())
+  learnerId       String
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  
+  learner         Learner   @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  turns           Turn[]
+}
+
+model Turn {
+  id              String        @id @default(uuid())
+  sessionId       String
+  createdAt       DateTime      @default(now())
+  role            Role
+  content         String        @db.Text
+  hintLevel       Int           @default(0) // 0 = guiding question, rising through ladder
+  
+  session         Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  concepts        ConceptTurn[]
+  memoryEvents    MemoryEvent[]
+}
+
+model ConceptTurn {
+  turnId          String
+  conceptId       String
+  
+  turn            Turn    @relation(fields: [turnId], references: [id], onDelete: Cascade)
+  concept         Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  
+  @@id([turnId, conceptId])
+}
+
+model MemoryEvent {
+  id              String    @id @default(uuid())
+  learnerId       String
+  turnId          String?   // The turn that caused this memory event, null if edited manually
+  createdAt       DateTime  @default(now())
+  reason          String    // Why this changed
+  changes         Json      // The diff/deltas applied
+  
+  learner         Learner   @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  turn            Turn?     @relation(fields: [turnId], references: [id], onDelete: SetNull)
 }
