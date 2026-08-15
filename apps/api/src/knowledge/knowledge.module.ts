@@ -12,5 +12,6 @@ import { CurriculumProcessor } from './curriculum.processor';
   ],
   providers: [KnowledgeService, CurriculumProcessor],
   controllers: [KnowledgeController],
+  exports: [KnowledgeService],
 })
 export class KnowledgeModule {}
