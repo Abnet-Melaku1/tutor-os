@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { KnowledgeModule } from './knowledge/knowledge.module';
+import { TutorModule } from './tutor/tutor.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
       },
     }),
     KnowledgeModule,
+    TutorModule,
   ],
   controllers: [AppController],
   providers: [AppService],
