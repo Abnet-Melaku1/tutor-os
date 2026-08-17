@@ -39,18 +39,25 @@ export class TutorService {
 
     // 2. LLM Call
     let reply = 'This is a simulated tutor response. (LLM integration pending - OPENAI_API_KEY not set)';
+    let mutations = { masteredConcepts: [], misconceptions: [] };
+
     if (this.openai) {
       try {
         const response = await this.openai.chat.completions.create({
-          model: 'gpt-4o', // Or gpt-4o-mini
+          model: 'gpt-4o',
+          response_format: { type: 'json_object' },
           messages: [
             {
               role: 'system',
-              content: `You are an adaptive AI tutor. Answer the student's question clearly and concisely.
-Use the following relevant curriculum concepts as context:
-${contextString}
+              content: `You are an adaptive AI tutor. You must respond in JSON format with the following structure:
+{
+  "reply": "Your conversational response to the student. Ask guiding questions, do not just give the answer.",
+  "masteredConcepts": ["Concept 1", "Concept 2"],
+  "misconceptions": ["Misconception A"]
+}
 
-Do not simply give away the direct answer. Ask guiding questions to lead the student to understanding.`
+Use the following relevant curriculum concepts as context:
+${contextString}`
             },
             {
               role: 'user',
@@ -59,20 +66,29 @@ Do not simply give away the direct answer. Ask guiding questions to lead the stu
           ],
           temperature: 0.7,
         });
-        reply = response.choices[0].message.content || 'I encountered an error forming a response.';
+
+        const content = response.choices[0].message.content;
+        if (content) {
+          const parsed = JSON.parse(content);
+          reply = parsed.reply || 'I encountered an error forming a response.';
+          mutations = {
+            masteredConcepts: parsed.masteredConcepts || [],
+            misconceptions: parsed.misconceptions || []
+          };
+        }
       } catch (err) {
         this.logger.error('Failed to call OpenAI API', err);
         throw new InternalServerErrorException('LLM generation failed.');
       }
     }
     
-    // 3. Memory Mutations (Stubbed for now)
-    // TODO: Parse LLM response for KnowledgeState updates and Misconceptions
+    // 3. Memory Mutations (Store in DB in future iteration)
+    // TODO: Use Prisma to save \`mutations.masteredConcepts\` and \`mutations.misconceptions\`
 
     return {
       reply,
       conceptsDiscussed: relevantContext.map(c => c.name),
-      memoryMutations: []
+      memoryMutations: mutations
     };
   }
 }
