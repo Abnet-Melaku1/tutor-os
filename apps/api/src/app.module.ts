@@ -4,9 +4,13 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { TutorModule } from './tutor/tutor.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     BullModule.forRoot({
       connection: {
         host: process.env.REDIS_HOST || 'localhost',
