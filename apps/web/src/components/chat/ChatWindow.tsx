@@ -23,16 +23,36 @@ export function ChatWindow() {
     setInput('');
     setTyping(true);
 
-    // Simulate API call for now
-    setTimeout(() => {
+    try {
+      const res = await fetch('http://localhost:3001/tutor/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'default-session',
+          learnerId: 'default-learner',
+          message: input
+        })
+      });
+      
+      if (!res.ok) throw new Error('API Error');
+      const data = await res.json();
+      
       addMessage({
         id: (Date.now() + 1).toString(),
         role: 'tutor' as const,
-        content: "That's an excellent question! In our next phase, I'll be connected to a real LLM and our knowledge base. For now, I'm just a sleek glassmorphic UI.",
+        content: data.reply,
         timestamp: new Date()
       });
+    } catch (err) {
+      addMessage({
+        id: (Date.now() + 1).toString(),
+        role: 'tutor' as const,
+        content: 'Error: Could not connect to the Tutor API. Make sure the API is running on port 3001.',
+        timestamp: new Date()
+      });
+    } finally {
       setTyping(false);
-    }, 1500);
+    }
   };
 
   return (
